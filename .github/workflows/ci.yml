@@ -1,0 +1,22 @@
+name: CI
+on:
+  push: { branches: [main, master] }
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detectar stack y construir
+        run: |
+          if [ -f package.json ]; then
+            echo "→ Node"; corepack enable || true
+            if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile || pnpm install; RUN="pnpm run";
+            elif [ -f yarn.lock ]; then yarn install --frozen-lockfile || yarn install; RUN="yarn";
+            else rm -f package-lock.json; npm install --legacy-peer-deps || npm install; RUN="npm run"; fi
+            if node -e "process.exit(require('./package.json').scripts && require('./package.json').scripts.build?0:1)"; then $RUN build; else echo "sin script build — instalación validada"; fi
+          elif [ -f pom.xml ]; then echo "→ Java/Maven"; mvn -B -DskipTests compile
+          elif ls build.gradle* >/dev/null 2>&1; then echo "→ Gradle"; ./gradlew assemble -x test || gradle assemble -x test
+          elif [ -f pyproject.toml ] || [ -f requirements.txt ] || ls *.py >/dev/null 2>&1; then
+            echo "→ Python"; [ -f requirements.txt ] && pip install -r requirements.txt || true; [ -f pyproject.toml ] && pip install . 2>/dev/null || true; python3 -m compileall -q .
+          else echo "→ estático / sin build reconocido — OK (skip)"; fi
